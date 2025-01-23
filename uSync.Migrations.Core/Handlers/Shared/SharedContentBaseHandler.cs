@@ -160,8 +160,15 @@ internal abstract class SharedContentBaseHandler<TEntity> : SharedHandlerBase<TE
             // default this value doesn't need to be split
             // and we can 'just' migrate it on its own.
             var migratedValue = MigrateContentValue(migrationProperty, context);
-            return new XElement(property.Name.LocalName,
-                        new XElement("Value", new XCData(migratedValue))).AsEnumerableOfOne();
+
+            //Fix a bug where Culture attribute is removed. Copy attributes from the old property Value
+            var newValueElement = new XElement("Value", new XCData(migratedValue));
+            foreach (var attribute in property.Element("Value")?.Attributes() ?? Enumerable.Empty<XAttribute>())
+            {
+                newValueElement.Add(new XAttribute(attribute.Name.LocalName, attribute.Value));
+            }
+
+            return new XElement(property.Name.LocalName,newValueElement).AsEnumerableOfOne();
         }
         catch (Exception ex)
         {

@@ -113,7 +113,7 @@ public class NestedToBlockListMigrator : SyncPropertyMigratorBase
     /// <remarks>
     ///  if a property has already been converted, then it will have this json in it. 
     /// </remarks>
-    private static string blockListJsonStub = "{\r\n  \"layout\": {\r\n    \"Umbraco.BlockList\":";
+    private static string blockListJsonStub = "{  \"layout\": {    \"Umbraco.BlockList\":";
 
     /// <summary>
     ///  convert the content value from nested content to blocklist. 
@@ -122,13 +122,22 @@ public class NestedToBlockListMigrator : SyncPropertyMigratorBase
     {
         if (string.IsNullOrWhiteSpace(contentProperty.Value)) return string.Empty;
 
-        if (contentProperty.Value.InvariantStartsWith(blockListJsonStub))
+        if (contentProperty.Value.Replace("\r", "").Replace("\n", "").InvariantStartsWith(blockListJsonStub))
         {
             _logger.LogDebug("Property [{name}] is already BlockList", contentProperty.EditorAlias);
-            return contentProperty.Value;
+            return  contentProperty.Value;
         }
 
-        var rowValues = JsonConvert.DeserializeObject<IList<NestedContentRowValue>>(contentProperty.Value, new JsonSerializerSettings() { DateParseHandling = DateParseHandling.None });
+        IList<NestedContentRowValue> rowValues = new List<NestedContentRowValue>();
+        try
+        {
+            rowValues = JsonConvert.DeserializeObject<IList<NestedContentRowValue>>(contentProperty.Value, new JsonSerializerSettings() { DateParseHandling = DateParseHandling.None });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error converting NestedContent to BlockList");
+            throw;
+        }
         if (rowValues == null) return string.Empty;
 
         var blockValue = new BlockValue();
@@ -169,16 +178,28 @@ public class NestedToBlockListMigrator : SyncPropertyMigratorBase
                 {
                     _logger.LogDebug("NestedToBlockList: Found Migrator: {migrator}", migrator.GetType().Name);
 
-                    block.RawPropertyValues[property.Key] = migrator.GetContentValue(
+                    var propertyValue = migrator.GetContentValue(
                         new SyncMigrationContentProperty(
                             contentTypeAlias,
                             property.Key,
                             editorAlias.OriginalEditorAlias, property.Value?.ToString() ?? string.Empty), context);
+
+                    if ((propertyValue??"").Replace("\r", "").Replace("\n", "").InvariantStartsWith("{  \"layout\": {    \"Umbraco.BlockList\":"))
+                    {
+                        block.RawPropertyValues[property.Key] = JsonConvert.DeserializeObject(propertyValue);
+                    }
+                    else
+                    {
+                        block.RawPropertyValues[property.Key] = propertyValue;
+                    }
                 }
                 else
                 {
                     _logger.LogDebug("NestedToBlockList: No Migrator found");
                     block.RawPropertyValues[property.Key] = property.Value;
+                    if( (property.Value?.GetType().Namespace ?? "Newtonsoft.Json.Linq") != "Newtonsoft.Json.Linq" && 
+                        (property.Value?.ToString()?.DetectIsJson() ?? false))
+                        block.RawPropertyValues[property.Key] = JsonConvert.DeserializeObject((string)property.Value);
                 }
             }
 

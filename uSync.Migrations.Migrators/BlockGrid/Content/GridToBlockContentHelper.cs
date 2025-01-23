@@ -339,6 +339,12 @@ internal class GridToBlockContentHelper
                         contentTypeAlias, propertyAlias,
                         editorAlias.OriginalEditorAlias, value?.ToString() ?? string.Empty);
                     propertyValue = migrator.GetContentValue(property, context);
+
+                    if ((propertyValue??"").ToString().Replace("\r", "").Replace("\n", "").InvariantStartsWith("{  \"layout\": {    \"Umbraco.BlockList\":"))
+                    {
+                        propertyValue = JsonConvert.DeserializeObject(propertyValue?.ToString());
+                    }
+
                     _logger.LogDebug("Migrator: {migrator} returned {value}", migrator.GetType().Name, propertyValue);
                 }
                 else

@@ -45,7 +45,15 @@ public class BlockListMigrator : SyncPropertyMigratorBase
     {
         if (string.IsNullOrWhiteSpace(contentProperty.Value)) return string.Empty;
 
-        var blockList = JsonConvert.DeserializeObject<BlockListValue>(contentProperty.Value);
+        BlockListValue blockList = null;
+        try 
+        {
+            blockList = JsonConvert.DeserializeObject<BlockListValue>(contentProperty.Value);
+        }
+        catch 
+        {
+            return contentProperty.Value;
+        }
 
         if (blockList == null) return string.Empty;
 
